@@ -291,9 +291,6 @@ class GameViewModel @Inject constructor(
             } catch (t: Throwable) {
                 null
             }
-            if (obstacleLimitResponse != null) {
-                println("wohoo ${obstacleLimitResponse.body()}")
-            }
             obstacleLimit =
                 if (obstacleLimitResponse != null && obstacleLimitResponse.isSuccessful) {
                     obstacleLimitResponse.body()!!
