@@ -1,6 +1,5 @@
-package com.example.cheesechase.ui.theme
+package com.example.cheese_deux_api.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

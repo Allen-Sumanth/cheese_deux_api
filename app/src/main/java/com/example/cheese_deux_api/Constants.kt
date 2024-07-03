@@ -1,4 +1,4 @@
-package com.example.cheesechase
+package com.example.cheese_deux_api
 
 object Constants {
     const val MOUSE_HEIGHT = 220

@@ -1,4 +1,4 @@
-package com.example.cheesechase
+package com.example.cheese_deux_api
 
 data class GameState(
     val currentTrack: Int = 1,

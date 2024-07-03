@@ -1,4 +1,4 @@
-package com.example.cheesechase
+package com.example.cheese_deux_api
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp

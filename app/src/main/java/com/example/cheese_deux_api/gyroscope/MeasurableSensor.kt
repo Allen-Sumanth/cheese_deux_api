@@ -1,4 +1,4 @@
-package com.example.cheesechase.gyroscope
+package com.example.cheese_deux_api.gyroscope
 
 abstract class MeasurableSensor(
     protected val sensorType: Int

@@ -1,4 +1,4 @@
-package com.example.cheesechase.gyroscope
+package com.example.cheese_deux_api.gyroscope
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor

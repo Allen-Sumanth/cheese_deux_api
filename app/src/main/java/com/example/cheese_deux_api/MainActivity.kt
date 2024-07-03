@@ -14,7 +14,9 @@ import androidx.compose.ui.Modifier
 import com.example.cheese_deux_api.ui.theme.Cheese_deux_apiTheme
 import com.example.cheese_deux_api.component_classes.AudioClass
 import com.example.cheese_deux_api.navigation.Navigation
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val backgroundAudio by lazy {
         AudioClass(context = this, audioIndex = R.raw.background_audio)

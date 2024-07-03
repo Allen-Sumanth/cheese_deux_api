@@ -1,4 +1,4 @@
-package com.example.cheesechase
+package com.example.cheese_deux_api
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -23,8 +23,8 @@ import com.example.cheese_deux_api.component_classes.FirstHitVibration
 import com.example.cheese_deux_api.component_classes.ObstacleClass
 import com.example.cheese_deux_api.component_classes.SpeedUpClass
 import com.example.cheese_deux_api.data.DataStorage
-import com.example.cheesechase.gyroscope.MeasurableSensor
-import com.example.cheesechase.ui.theme.GamePageBackground
+import com.example.cheese_deux_api.gyroscope.MeasurableSensor
+import com.example.cheese_deux_api.theme.GamePageBackground
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first

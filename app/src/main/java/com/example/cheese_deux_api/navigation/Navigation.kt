@@ -9,12 +9,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.cheese_deux_api.R
-import com.example.cheesechase.GameViewModel
+import com.example.cheese_deux_api.GameViewModel
 import com.example.cheese_deux_api.component_classes.AudioClass
 import com.example.cheese_deux_api.component_classes.AudioType
-import com.example.cheesechase.navigation.Screens
-import com.example.cheesechase.screens.GamePage
-import com.example.cheesechase.screens.HomePage
+import com.example.cheese_deux_api.screens.GamePage
+import com.example.cheese_deux_api.screens.HomePage
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -53,7 +52,7 @@ fun Navigation(context: Context) {
     NavHost(navController = navController, startDestination = Screens.HomePage.route) {
 
         composable(route = Screens.HomePage.route) {
-            HomePage(navController = navController, viewModel = viewModel, audioMap = homePageAudioMap)
+            HomePage(navController = navController, viewModel = viewModel, audioMap = homePageAudioMap, context = context)
         }
 
         composable(route = Screens.GamePage.route) {

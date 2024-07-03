@@ -5,7 +5,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import com.example.cheesechase.gyroscope.MeasurableSensor
 
 abstract class AndroidSensor(
     private val context: Context,

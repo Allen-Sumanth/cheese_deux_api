@@ -1,4 +1,4 @@
-package com.example.cheesechase.screens
+package com.example.cheese_deux_api.screens
 
 import android.content.Context
 import android.os.Build
@@ -71,22 +71,23 @@ import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
+import com.example.cheese_deux_api.R
 import com.example.cheese_deux_api.component_classes.AudioClass
 import com.example.cheese_deux_api.component_classes.AudioType
-import com.example.cheesechase.Constants
-import com.example.cheesechase.GameStatus
-import com.example.cheesechase.GameViewModel
-import com.example.cheesechase.R
-import com.example.cheesechase.ui.theme.ButtonFont
-import com.example.cheesechase.ui.theme.DisabledReviveButton
-import com.example.cheesechase.ui.theme.GameOverBackground
-import com.example.cheesechase.ui.theme.GameOverText
-import com.example.cheesechase.ui.theme.GamePageBackground
-import com.example.cheesechase.ui.theme.HomePageButtonBackground
-import com.example.cheesechase.ui.theme.ScoreCardBackground
-import com.example.cheesechase.ui.theme.TitleColour
-import com.example.cheesechase.ui.theme.TrackColor
-import com.example.cheesechase.ui.theme.anonymousProBold
+import com.example.cheese_deux_api.theme.anonymousProBold
+import com.example.cheese_deux_api.Constants
+import com.example.cheese_deux_api.GameStatus
+import com.example.cheese_deux_api.GameViewModel
+import com.example.cheese_deux_api.navigation.Screens
+import com.example.cheese_deux_api.theme.ButtonFont
+import com.example.cheese_deux_api.theme.DisabledReviveButton
+import com.example.cheese_deux_api.theme.GameOverBackground
+import com.example.cheese_deux_api.theme.GameOverText
+import com.example.cheese_deux_api.theme.GamePageBackground
+import com.example.cheese_deux_api.theme.HomePageButtonBackground
+import com.example.cheese_deux_api.theme.ScoreCardBackground
+import com.example.cheese_deux_api.theme.TitleColour
+import com.example.cheese_deux_api.theme.TrackColor
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -98,7 +99,12 @@ fun GamePage(
 ) {
     BackHandler {//handles back button press
         viewModel.pauseGame()
-        navController.navigate("homepage")
+        navController.navigate(Screens.HomePage.route){
+            popUpTo(Screens.HomePage.route) {
+                inclusive = true
+                saveState = true
+            }
+        }
     }
 
     //region bitmaps
@@ -571,7 +577,12 @@ fun GamePage(
                                 Button(
                                     onClick = {
                                         viewModel.resetGame()
-                                        navController.navigate("homepage")
+                                        navController.navigate(Screens.HomePage.route) {
+                                            popUpTo(Screens.HomePage.route) {
+                                                inclusive = true
+                                                saveState = true
+                                            }
+                                        }
                                         viewModel.openGameOverDialog = false
                                         audioMap[AudioType.BUTTON]?.play(1f)
                                     },

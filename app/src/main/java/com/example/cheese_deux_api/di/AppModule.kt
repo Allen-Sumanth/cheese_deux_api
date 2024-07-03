@@ -3,8 +3,8 @@ package com.example.cheese_deux_api.di
 import android.app.Application
 import com.example.cheese_deux_api.cheese_deux.CheeseDeuxApi
 import com.example.cheese_deux_api.data.DataStorage
-import com.example.cheesechase.gyroscope.GyroSensor
-import com.example.cheesechase.gyroscope.MeasurableSensor
+import com.example.cheese_deux_api.gyroscope.GyroSensor
+import com.example.cheese_deux_api.gyroscope.MeasurableSensor
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
