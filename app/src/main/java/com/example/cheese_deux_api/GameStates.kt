@@ -2,8 +2,8 @@ package com.example.cheese_deux_api
 
 data class GameState(
     val currentTrack: Int = 1,
-    val firstHit: Boolean = false,
-    val firstHitScore: Int = 0,
+    val hitCount: Int = 0,
+    val latestHitScore: Int = 0,//to account for 0 score on starting and reset
     val gameStatus: GameStatus = GameStatus.STOPPED,
     var soundOn: Boolean = true
 )

@@ -36,7 +36,7 @@ fun Navigation(context: Context) {
     val speedUpAudio = AudioClass(context = context, audioIndex = R.raw.speedup)
     val gameOverAudio = AudioClass(context = context, audioIndex = R.raw.game_over)
     val clickAudio = AudioClass(context = context, audioIndex = R.raw.click_audio)
-    val firstHitAudio = AudioClass(context = context, audioIndex = R.raw.first_hit)
+    val firstHitAudio = AudioClass(context = context, audioIndex = R.raw.mouse_hit)
     val gamePageAudioMap = mapOf(
         AudioType.CHEESE_COLLECT to cheeseCollectAudio,
         AudioType.CHEESE_SHOOT to cheeseShootAudio,

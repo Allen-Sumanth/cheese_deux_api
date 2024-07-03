@@ -99,7 +99,7 @@ fun GamePage(
 ) {
     BackHandler {//handles back button press
         viewModel.pauseGame()
-        navController.navigate(Screens.HomePage.route){
+        navController.navigate(Screens.HomePage.route) {
             popUpTo(Screens.HomePage.route) {
                 inclusive = true
                 saveState = true
@@ -141,15 +141,14 @@ fun GamePage(
         animationSpec = tween(durationMillis = 900, delayMillis = 100)
     )
     val catYOffset by animateIntAsState(
-        targetValue = if (viewModel.state.firstHit) {
-            Constants.CAT_VISIBLE
-        } else {
-            Constants.CAT_HIDDEN
-
-        },
+        targetValue = Constants.CAT_HIDDEN +
+                (Constants.CAT_FULLY_VISIBLE - Constants.CAT_HIDDEN)
+                    .div(viewModel.obstacleLimit.obstacleLimit - 1)
+                    .times(viewModel.state.hitCount),
         label = "cat y offset",
         animationSpec = tween(durationMillis = 800)
     )
+    println("wohoo ${viewModel.state.hitCount} count and ${viewModel.state.latestHitScore} score")
     //endregion
 
     //calculating current velocity
@@ -251,7 +250,6 @@ fun GamePage(
             drawCat(
                 catDrawableBitmap = catDrawableBitmap,
                 catXCoords = catXCoords,
-                viewModel = viewModel,
                 catYOffset = catYOffset
             )
 
@@ -615,14 +613,9 @@ fun GamePage(
 private fun DrawScope.drawCat(
     catDrawableBitmap: ImageBitmap,
     catXCoords: Int,
-    viewModel: GameViewModel,
     catYOffset: Int,
 ) {
-    val yOffset = if (viewModel.state.firstHit) {
-        size.height.minus(catYOffset.dp.toPx().toInt())
-    } else {
-        size.height.minus(catYOffset.dp.toPx().toInt())
-    }
+    val yOffset = size.height.minus(catYOffset.dp.toPx().toInt())
 
     clipRect(//restricts drawing to within screen
         left = 0f,
@@ -651,10 +644,10 @@ private fun DrawScope.drawMouse(
     mouseXCoords: Int,
     viewModel: GameViewModel,
     audioMap: Map<AudioType, AudioClass>,
-    context: Context
+    context: Context,
 ) {
     val image = if (!viewModel.hackerState.invulnerability) {
-        if (viewModel.state.firstHit) {
+        if (viewModel.state.hitCount > 0) {
             mouseHitDrawableBitmap
         } else {
             mouseDrawableBitmap
@@ -679,9 +672,9 @@ private fun DrawScope.drawMouse(
     viewModel.observeCollision(
         mouseRect = mouseRect,
         gameOverAudio = audioMap[AudioType.GAME_OVER],
-        firstHitAudio = audioMap[AudioType.FIRST_HIT],
+        collisionAudio = audioMap[AudioType.FIRST_HIT],
         context = context
-        )
+    )
     viewModel.observeInvulnerabilityPowerup(
         mouseRect = mouseRect,
         cookieAudio = audioMap[AudioType.INVULNERABILITY]

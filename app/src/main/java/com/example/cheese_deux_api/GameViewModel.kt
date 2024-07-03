@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cheese_deux_api.cheese_deux.CheeseDeuxApi
+import com.example.cheese_deux_api.cheese_deux.ObstacleLimit
 import com.example.cheese_deux_api.component_classes.AudioClass
 import com.example.cheese_deux_api.component_classes.CheeseClass
 import com.example.cheese_deux_api.component_classes.CookieClass
@@ -37,6 +39,7 @@ import javax.inject.Inject
 class GameViewModel @Inject constructor(
     gyroSensor: MeasurableSensor,
     private val dataStore: DataStorage,
+    cheeseDeuxApi: CheeseDeuxApi,
 ) : ViewModel() {
 
     //region declaring states
@@ -99,8 +102,8 @@ class GameViewModel @Inject constructor(
         state = state.copy(
             gameStatus = GameStatus.STOPPED,
             currentTrack = 1,
-            firstHit = false,
-            firstHitScore = 0,
+            hitCount = 0,
+            latestHitScore = 0,
         )
         hackerState = hackerState.copy(
             invulnerability = false,
@@ -216,9 +219,11 @@ class GameViewModel @Inject constructor(
 
     fun increaseGameScore(velocityPx: Float) {
         if (obstaclePosRecorder.any { obstacleRect ->
-                obstacleRect.top in (1830f - velocityPx / 2..1830f + velocityPx / 2) //1830f is mouse ending offset (approx)
+                obstacleRect.bottom in (1670f - velocityPx / 2..1670f + velocityPx / 2) //1830f is mouse ending offset (approx)
             }) {
-            gameScore++
+            viewModelScope.launch {
+                gameScore++
+            }
         }
     }
     //endregion
@@ -276,43 +281,63 @@ class GameViewModel @Inject constructor(
     //endregion
 
     //region observing collision - called in mouse drawing from game screen
+    lateinit var obstacleLimit: ObstacleLimit
+
+    //API call to get obstacleLimit
+    init {
+        viewModelScope.launch {
+            val obstacleLimitResponse = try {
+                cheeseDeuxApi.getObstacleLimit()
+            } catch (t: Throwable) {
+                null
+            }
+            if (obstacleLimitResponse != null) {
+                println("wohoo ${obstacleLimitResponse.body()}")
+            }
+            obstacleLimit =
+                if (obstacleLimitResponse != null && obstacleLimitResponse.isSuccessful) {
+                    obstacleLimitResponse.body()!!
+                } else ObstacleLimit(obstacleLimit = 2) //default value is 2
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     fun observeCollision(
         mouseRect: Rect,
         gameOverAudio: AudioClass?,
-        firstHitAudio: AudioClass?,
+        collisionAudio: AudioClass?,
         context: Context,
     ) {//also reset cat 10 blocks after collision
         if (obstaclePosRecorder.any { obstacleRect ->
                 obstacleRect.overlaps(mouseRect)
             }) {
-            if (!state.firstHit && !hackerState.invulnerability) {//if invulnerable, collision doesn't matter
-                collisionFirstHit()
-                firstHitAudio?.play(1f)
+            if (gameScore > state.latestHitScore && !hackerState.invulnerability && state.hitCount < obstacleLimit.obstacleLimit - 1) {//if invulnerable, collision doesn't matter
+                collisionNormal()
+                collisionAudio?.play(1f)
                 FirstHitVibration().vibrate(context = context, duration = 250)
-            } else if (state.firstHit && gameScore > state.firstHitScore && !hackerState.invulnerability) {
-                collisionSecondHit()
+            } else if (gameScore > state.latestHitScore && !hackerState.invulnerability && state.hitCount == obstacleLimit.obstacleLimit - 1) {
+                collisionFinalHit()
                 gameOverAudio?.play(1f)
             }
         }
 
-        if ((state.firstHit && gameScore > state.firstHitScore + 10) || (state.firstHit && hackerState.invulnerability)) {
+        if ((state.hitCount < obstacleLimit.obstacleLimit && gameScore > state.latestHitScore + 10) || (state.hitCount < obstacleLimit.obstacleLimit && hackerState.invulnerability)) {
             state = state.copy(
-                firstHit = false,
-                firstHitScore = 0
+                latestHitScore = 0,
+                hitCount = 0
             )
         }
     }
 
-    private fun collisionFirstHit() {
+    private fun collisionNormal() {
         state = state.copy(
-            firstHit = true,
-            firstHitScore = gameScore
+            latestHitScore = gameScore,
+            hitCount = state.hitCount + 1
         )
-
+        println("wohoo bahaha ${state.hitCount} count and ${state.latestHitScore} score")
     }
 
-    private fun collisionSecondHit() {
+    private fun collisionFinalHit() {
         pauseGame()
         openGameOverDialog = true
     }
@@ -521,8 +546,8 @@ class GameViewModel @Inject constructor(
         )
         state = state.copy(
             currentTrack = if (state.currentTrack == 0) 2 else state.currentTrack - 1,
-            firstHit = false,
-            firstHitScore = 0,
+            hitCount = 0,
+            latestHitScore = 0,
         )
     }
 
