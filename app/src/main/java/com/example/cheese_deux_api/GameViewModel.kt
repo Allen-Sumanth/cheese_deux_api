@@ -2,8 +2,10 @@ package com.example.cheese_deux_api
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.collection.intIntMapOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -17,17 +19,21 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cheese_deux_api.cheese_deux.CheeseDeuxApi
+import com.example.cheese_deux_api.cheese_deux.ImageFetcher
 import com.example.cheese_deux_api.cheese_deux.ObstacleLimit
 import com.example.cheese_deux_api.component_classes.AudioClass
 import com.example.cheese_deux_api.component_classes.CheeseClass
-import com.example.cheese_deux_api.component_classes.CookieClass
 import com.example.cheese_deux_api.component_classes.FirstHitVibration
+import com.example.cheese_deux_api.component_classes.HindranceClass
+import com.example.cheese_deux_api.component_classes.HindranceType
 import com.example.cheese_deux_api.component_classes.ObstacleClass
-import com.example.cheese_deux_api.component_classes.SpeedUpClass
+import com.example.cheese_deux_api.component_classes.ObstacleCourseApi
 import com.example.cheese_deux_api.data.DataStorage
 import com.example.cheese_deux_api.gyroscope.MeasurableSensor
-import com.example.cheese_deux_api.theme.GamePageBackground
+import com.example.cheese_deux_api.theme.MarkerColor
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -40,6 +46,8 @@ class GameViewModel @Inject constructor(
     gyroSensor: MeasurableSensor,
     private val dataStore: DataStorage,
     cheeseDeuxApi: CheeseDeuxApi,
+    private val imageFetcher: ImageFetcher,
+    private val obstacleCourseApi: ObstacleCourseApi,
 ) : ViewModel() {
 
     //region declaring states
@@ -49,15 +57,13 @@ class GameViewModel @Inject constructor(
 
     var gameTracker by mutableFloatStateOf(0f)//10ms delay keeping pace of game
     private var currentMarkerOffset by mutableFloatStateOf(0f) // for drawing markers
-    private var obstaclePosRecorder by mutableStateOf(MutableList(4) { Rect.Zero })//recording position of each obstacle for collision detection
     var gameScore by mutableIntStateOf(0)
     var openGameOverDialog by mutableStateOf(false)//prompt to open game over dialog
     var openHighScoreDialog by mutableStateOf(false)//prompt to open high score dialog
     var openInfoDialog by mutableStateOf(false)//prompt to open info dialog
 
+    private var obstaclePosRecorder by mutableStateOf(MutableList(8) { Rect.Zero })//recording position of each obstacle for collision detection
     var speedupVelocity by mutableFloatStateOf(0f)//adds velocity when speedup is activated
-    private var cookiePosRecorder by mutableStateOf(MutableList(8) { Rect.Zero })//recording position of each cookie for collision detection
-    private var speedUpPosRecorder by mutableStateOf(MutableList(8) { Rect.Zero })//recording position of each speed up for collision detection
     private var cheesePosRecorder by mutableStateOf(MutableList(8) { Rect.Zero })//recording position of each cheese for collision detection
     //endregion
 
@@ -81,6 +87,33 @@ class GameViewModel @Inject constructor(
     fun resetHighScores() {
         runBlocking {
             dataStore.saveNewScore(0)
+        }
+    }
+    //endregion
+
+    //region obtaining bitmaps from the api (init block used)
+    private val catApiEndpoint = "https://chasedeux.vercel.app/image?character=tom"
+    private val mouseApiEndpoint = "https://chasedeux.vercel.app/image?character=jerry"
+    private val obstacleApiEndpoint = "https://chasedeux.vercel.app/image?character=obstacle"
+
+    var catBitmap: Bitmap? by mutableStateOf(null)
+    var mouseBitmap: Bitmap? by mutableStateOf(null)
+    var obstacleBitmap: Bitmap? by mutableStateOf(null)
+
+    init {
+        viewModelScope.launch(context = kotlinx.coroutines.Dispatchers.IO) {
+            catBitmap = imageFetcher.getBitmap(
+                imageEndpoint = catApiEndpoint,
+                defaultImageRes = R.drawable.cat_icon
+            )
+            mouseBitmap = imageFetcher.getBitmap(
+                imageEndpoint = mouseApiEndpoint,
+                defaultImageRes = R.drawable.mouse_icon
+            )
+            obstacleBitmap = imageFetcher.getBitmap(
+                imageEndpoint = obstacleApiEndpoint,
+                defaultImageRes = R.drawable.obstacle
+            )
         }
     }
     //endregion
@@ -117,8 +150,6 @@ class GameViewModel @Inject constructor(
         )
         resetObstacles()
         if (hackerState.isHackerState) {
-            resetSpeedUps()
-            resetCookies()
             resetCheese()
         }
         speedupVelocity = 0f
@@ -173,7 +204,7 @@ class GameViewModel @Inject constructor(
         laneIndex: Int,
     ) {
         drawLine(
-            color = GamePageBackground, start = Offset(
+            color = MarkerColor, start = Offset(
                 x = centreCoords[laneIndex - 1], y = yPosition
             ), end = Offset(
                 x = centreCoords[laneIndex - 1], y = yPosition.plus(60.dp.toPx())
@@ -183,27 +214,57 @@ class GameViewModel @Inject constructor(
     //endregion
 
     //region all obstacle related functions (increasing game score here)
-    private val obstacleList = (0..<Constants.OBSTACLE_COUNT).map {
-        ObstacleClass(obstacleIndex = it, laneIndex = (1..3).random())
+
+    //initializing list of obstacles and hindrances with dummy values
+    private var obstacleList = MutableList(8) {
+        ObstacleClass(
+            obstacleIndex = it,
+            isHindrance = false,
+            obstacleCourseApi = obstacleCourseApi
+        )
+    }
+    private var nextIterationObstacleList = MutableList(8) {
+        ObstacleClass(
+            obstacleIndex = it,
+            isHindrance = false,
+            obstacleCourseApi = obstacleCourseApi
+        )
     }
 
-    fun drawObstacles(
+    init {// obtaining the lanes for the first time
+        viewModelScope.launch(context = kotlinx.coroutines.Dispatchers.IO) {
+            //each element of laneList is a pair of (Bool - isHindrance, Int - lane)
+            val laneListPair = obstacleCourseApi.initialiseObstacleList()
+            obstacleList.forEachIndexed { index, obstacleClass ->
+                obstacleClass.isHindrance = laneListPair.first[index].first
+                obstacleClass.laneIndex = laneListPair.first[index].second
+            }
+            nextIterationObstacleList.forEachIndexed { index, obstacleClass ->
+                obstacleClass.isHindrance = laneListPair.second[index].first
+                obstacleClass.laneIndex = laneListPair.second[index].second
+            }
+        }
+    }
+
+    fun drawObstaclesAndHindrances(
         centreCoords: List<Float>,
         drawScope: DrawScope,
         divHeight: Float,
-        imageBitmap: ImageBitmap,
+        obstacleImageBitmap: ImageBitmap,
+        hindranceImageBitmap: ImageBitmap,
         height: Float,
         velocityPx: Float,
     ) {
-        obstacleList.forEachIndexed { obstacleIndex, obstacleClass ->
-            obstaclePosRecorder[obstacleIndex] = obstacleClass.draw(
+        obstacleList.forEachIndexed { index, obstacleClass ->
+            obstaclePosRecorder[index] = obstacleClass.draw(
                 drawScope = drawScope,
                 divHeight = divHeight,
-                imageBitmap = imageBitmap,
+                obstacleImageBitmap = obstacleImageBitmap,
+                hindranceImageBitmap = hindranceImageBitmap,
                 centreCoords = centreCoords,
                 height = height,
+                scope = viewModelScope
             )
-
             if (state.gameStatus == GameStatus.PLAYING) {
                 obstacleClass.move(velocityPx = velocityPx)
             }
@@ -216,16 +277,14 @@ class GameViewModel @Inject constructor(
         }
     }
 
-
     fun increaseGameScore(velocityPx: Float) {
         if (obstaclePosRecorder.any { obstacleRect ->
-                obstacleRect.bottom in (1670f - velocityPx / 2..1670f + velocityPx / 2) //1830f is mouse ending offset (approx)
-            }) {
-            viewModelScope.launch {
-                gameScore++
-            }
+                obstacleRect.bottom in (1600f - velocityPx / 2..1600f + velocityPx / 2) //1600f is mouse starting offset (approx)
+            } && state.gameStatus == GameStatus.PLAYING) {
+            gameScore++
         }
     }
+
     //endregion
 
     //region handling mouse movement
@@ -278,10 +337,10 @@ class GameViewModel @Inject constructor(
             )
         }
     }
-    //endregion
+//endregion
 
-    //region observing collision - called in mouse drawing from game screen
-    lateinit var obstacleLimit: ObstacleLimit
+    //region observing collision - called in mouse drawing from game screen (init block used)
+    var obstacleLimit by mutableStateOf(ObstacleLimit(obstacleLimit = 2)) //default value is 2
 
     //API call to get obstacleLimit
     init {
@@ -291,11 +350,13 @@ class GameViewModel @Inject constructor(
             } catch (t: Throwable) {
                 null
             }
-            obstacleLimit =
-                if (obstacleLimitResponse != null && obstacleLimitResponse.isSuccessful) {
-                    obstacleLimitResponse.body()!!
-                } else ObstacleLimit(obstacleLimit = 2) //default value is 2
+
+            if (obstacleLimitResponse != null && obstacleLimitResponse.isSuccessful) {
+                obstacleLimit = obstacleLimitResponse.body()!!
+            }
         }
+
+        ObstacleCourseApi(cheeseDeuxApi)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -303,18 +364,72 @@ class GameViewModel @Inject constructor(
         mouseRect: Rect,
         gameOverAudio: AudioClass?,
         collisionAudio: AudioClass?,
+        cookieAudio: AudioClass?,
+        speedUpAudio: AudioClass?,
         context: Context,
     ) {//also reset cat 10 blocks after collision
         if (obstaclePosRecorder.any { obstacleRect ->
                 obstacleRect.overlaps(mouseRect)
             }) {
-            if (gameScore > state.latestHitScore && !hackerState.invulnerability && state.hitCount < obstacleLimit.obstacleLimit - 1) {//if invulnerable, collision doesn't matter
-                collisionNormal()
-                collisionAudio?.play(1f)
-                FirstHitVibration().vibrate(context = context, duration = 250)
-            } else if (gameScore > state.latestHitScore && !hackerState.invulnerability && state.hitCount == obstacleLimit.obstacleLimit - 1) {
-                collisionFinalHit()
-                gameOverAudio?.play(1f)
+            val index = obstaclePosRecorder.indexOfLast { rect ->
+                rect.overlaps(mouseRect)
+            }
+
+            if (!obstacleList[index].isHindrance) {
+                if (gameScore > state.latestHitScore && !hackerState.invulnerability && state.hitCount < obstacleLimit.obstacleLimit - 1) {//if invulnerable, collision doesn't matter
+                    collisionNormal()
+                    collisionAudio?.play(1f)
+                    FirstHitVibration().vibrate(context = context, duration = 250)
+                } else if (gameScore > state.latestHitScore && !hackerState.invulnerability && state.hitCount >= obstacleLimit.obstacleLimit - 1) {
+                    collisionFinalHit()
+                    gameOverAudio?.play(1f)
+                }
+            } else {
+                val hindranceType = obstacleCourseApi.hindranceTypeList[index].type
+                val hindranceAmount = obstacleCourseApi.hindranceTypeList[index].amount
+
+                when (hindranceType) {
+                    HindranceType.NONE -> {}
+                    HindranceType.AUTOJUMP -> {
+                        autoJump(hindranceAmount, cookieAudio)
+                    }
+
+                    HindranceType.SPEEDUP -> {
+                        viewModelScope.launch(context = kotlinx.coroutines.Dispatchers.Default) {
+                            val delayTime = hindranceAmount * 1000
+                            hackerState = hackerState.copy(
+                                speedUp = true,
+                                speedUpActivationScore = gameScore
+                            )
+                            speedUpAudio?.play(volume = 0.5f)
+                            speedupVelocity = Constants.SPEEDUP_VELOCITY.toFloat()
+
+                            delay(delayTime.toLong())
+
+                            hackerState = hackerState.copy(
+                                speedUp = false,
+                                speedUpActivationScore = 0
+                            )
+                            speedupVelocity = 0f
+                        }
+                    }
+
+                    HindranceType.CAT_CLOSER -> {
+                        if (!hackerState.invulnerability) {
+                            state = state.copy(
+                                latestHitScore = gameScore,
+                                hitCount = state.hitCount + hindranceAmount
+                            )
+                            if (state.hitCount >= obstacleLimit.obstacleLimit - 1) {
+                                collisionFinalHit()
+                                gameOverAudio?.play(1f)
+                            } else {
+                                collisionAudio?.play(1f)
+                                FirstHitVibration().vibrate(context = context, duration = 250)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -326,62 +441,18 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    private fun collisionNormal() {
-        state = state.copy(
-            latestHitScore = gameScore,
-            hitCount = state.hitCount + 1
-        )
-        println("wohoo bahaha ${state.hitCount} count and ${state.latestHitScore} score")
-    }
-
-    private fun collisionFinalHit() {
-        pauseGame()
-        openGameOverDialog = true
-    }
-    //endregion
-
-    //region hacker mode - invulnerability cookies
-    private val cookieList = (1..Constants.COOKIE_COUNT step 2).map {
-        CookieClass(
-            cookieIndex = it,
-            laneIndex = (1..60).random()
-        )//randomising to 1 in 20 probability
-    }
-
-    fun drawCookies(
-        centreCoords: List<Float>,
-        drawScope: DrawScope,
-        divHeight: Float,
-        imageBitmap: ImageBitmap,
-        height: Float,
-        velocityPx: Float,
+    private fun autoJump(
+        hindranceAmount: Int,
+        cookieAudio: AudioClass?,
     ) {
-        cookieList.forEachIndexed { cookieIndex, cookieClass ->
-            cookiePosRecorder[cookieIndex] = cookieClass.draw(
-                drawScope = drawScope,
-                divHeight = divHeight,
-                imageBitmap = imageBitmap,
-                centreCoords = centreCoords,
-                height = height,
-            )
-
-            if (state.gameStatus == GameStatus.PLAYING) {
-                cookieClass.move(velocityPx = velocityPx)
-            }
-        }
-    }
-
-    fun observeInvulnerabilityPowerup(mouseRect: Rect, cookieAudio: AudioClass?) {
-        if (cookiePosRecorder.any { cookieRect ->
-                cookieRect.overlaps(mouseRect)
-            }) {
+        viewModelScope.launch(context = Dispatchers.Default) {
+            val delayTime = hindranceAmount * 1000
             hackerState = hackerState.copy(
                 invulnerability = true,
                 invulnerabilityActivationScore = gameScore
             )
             cookieAudio?.play(volume = 1f)
-        }
-        if (hackerState.invulnerability && gameScore > hackerState.invulnerabilityActivationScore + 10) {
+            delay(delayTime.toLong())
             hackerState = hackerState.copy(
                 invulnerability = false,
                 invulnerabilityActivationScore = 0
@@ -389,70 +460,16 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    private fun resetCookies() {
-        cookieList.forEach {
-            it.reset()
-        }
-    }
-    //endregion
-
-    //region hacker mode - speed ups
-    private val speedUpList = (1..Constants.SPEED_UP_COUNT step 2).map {
-        SpeedUpClass(
-            speedUpIndex = it,
-            laneIndex = (1..60).random()
-        )//randomising to 1 in 20 probability
+    private fun collisionNormal() {
+        state = state.copy(
+            latestHitScore = gameScore,
+            hitCount = state.hitCount + 1
+        )
     }
 
-    fun drawSpeedUps(
-        centreCoords: List<Float>,
-        drawScope: DrawScope,
-        divHeight: Float,
-        imageBitmap: ImageBitmap,
-        height: Float,
-        velocityPx: Float,
-    ) {
-        speedUpList.forEachIndexed { speedUpIndex, speedUpClass ->
-            if (cookiePosRecorder[speedUpIndex] == Rect.Zero) {
-                speedUpPosRecorder[speedUpIndex] = speedUpClass.draw(
-                    drawScope = drawScope,
-                    divHeight = divHeight,
-                    imageBitmap = imageBitmap,
-                    centreCoords = centreCoords,
-                    height = height,
-                )
-            }
-
-            if (state.gameStatus == GameStatus.PLAYING) {
-                speedUpClass.move(velocityPx = velocityPx)
-            }
-        }
-    }
-
-    fun observeSpeedUpPowerup(mouseRect: Rect, speedUpAudio: AudioClass?) {
-        if (speedUpPosRecorder.any { speedUpRect ->
-                speedUpRect.overlaps(mouseRect)
-            }) {
-            hackerState = hackerState.copy(
-                speedUp = true,
-                speedUpActivationScore = gameScore
-            )
-            speedUpAudio?.play(volume = 0.5f)
-            speedupVelocity = Constants.SPEEDUP_VELOCITY.toFloat()
-        }
-        if (hackerState.speedUp && gameScore > hackerState.speedUpActivationScore + 10) {
-            hackerState = hackerState.copy(
-                speedUp = false,
-                speedUpActivationScore = 0
-            )
-            speedupVelocity = 0f
-        }
-    }
-
-    private fun resetSpeedUps() {
-        speedUpList.forEach {
-            it.reset()
-        }
+    private fun collisionFinalHit() {
+        pauseGame()
+        openGameOverDialog = true
     }
     //endregion
 
@@ -473,15 +490,13 @@ class GameViewModel @Inject constructor(
         velocityPx: Float,
     ) {
         cheeseList.forEachIndexed { cheeseIndex, cheeseClass ->
-            if (cookiePosRecorder[cheeseIndex] == Rect.Zero && speedUpPosRecorder[cheeseIndex] == Rect.Zero) {
-                cheesePosRecorder[cheeseIndex] = cheeseClass.draw(
-                    drawScope = drawScope,
-                    divHeight = divHeight,
-                    imageBitmap = imageBitmap,
-                    centreCoords = centreCoords,
-                    height = height,
-                )
-            }
+            cheesePosRecorder[cheeseIndex] = cheeseClass.draw(
+                drawScope = drawScope,
+                divHeight = divHeight,
+                imageBitmap = imageBitmap,
+                centreCoords = centreCoords,
+                height = height,
+            )
 
             if (state.gameStatus == GameStatus.PLAYING) {
                 cheeseClass.move(velocityPx = velocityPx)
@@ -533,14 +548,11 @@ class GameViewModel @Inject constructor(
 
     }
 
-    fun cheeseRevive() {
+    fun cheeseRevive(cookieAudio: AudioClass?) {
         hackerPlusState = hackerPlusState.copy(
             cheeseCount = hackerPlusState.cheeseCount - 1
         )
-        hackerState = hackerState.copy(
-            invulnerability = true,
-            invulnerabilityActivationScore = gameScore
-        )
+        autoJump(hindranceAmount = 5, cookieAudio = cookieAudio)
         state = state.copy(
             currentTrack = if (state.currentTrack == 0) 2 else state.currentTrack - 1,
             hitCount = 0,
@@ -548,9 +560,9 @@ class GameViewModel @Inject constructor(
         )
     }
 
-    //endregion
+//endregion
 
-    //region handling gyro
+    //region handling gyro (init block used)
     init {
         gyroSensor.startListening()
         gyroSensor.setOnSensorValuesChangedListener { values ->
@@ -560,6 +572,6 @@ class GameViewModel @Inject constructor(
             }
         }
     }
-    //endregion
+//endregion
 
 }

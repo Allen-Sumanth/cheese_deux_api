@@ -1,6 +1,7 @@
 package com.example.cheese_deux_api.di
 
 import android.app.Application
+import com.example.cheese_deux_api.cheese_deux.ImageFetcher
 import com.example.cheese_deux_api.cheese_deux.CheeseDeuxApi
 import com.example.cheese_deux_api.data.DataStorage
 import com.example.cheese_deux_api.gyroscope.GyroSensor
@@ -43,7 +44,6 @@ object AppModule {
         )
         .build()
 
-
     @Provides
     @Singleton
     fun provideCheeseDeuxApi(
@@ -54,4 +54,16 @@ object AppModule {
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(CheeseDeuxApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideImageFetcher(app: Application): ImageFetcher {
+        return ImageFetcher(app)
+    }
+
+    @Provides
+    @Singleton
+    fun provideObstacleCourseOrder(cheeseDeuxApi: CheeseDeuxApi): com.example.cheese_deux_api.component_classes.ObstacleCourseApi {
+        return com.example.cheese_deux_api.component_classes.ObstacleCourseApi(cheeseDeuxApi = cheeseDeuxApi)
+    }
 }

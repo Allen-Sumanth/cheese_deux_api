@@ -75,7 +75,7 @@ fun HomePage(
     navController: NavController,
     viewModel: GameViewModel,
     audioMap: Map<AudioType, AudioClass>,
-    context: Context
+    context: Context,
 ) {
     DoubleBackPressToExit(context)
     Column(
@@ -216,10 +216,13 @@ fun HomePage(
 
         //Game Intro Dialog
         if (viewModel.openInfoDialog) {
-            GameIntro(onDismissRequest = {
-                viewModel.openInfoDialog = false
-                audioMap[AudioType.BUTTON]?.play(1f)
-            })
+            GameIntro(
+                onDismissRequest = {
+                    viewModel.openInfoDialog = false
+                    audioMap[AudioType.BUTTON]?.play(1f)
+                },
+                obstacleLimit = viewModel.obstacleLimit.obstacleLimit
+            )
         }
     }
 }
@@ -332,17 +335,15 @@ fun HighScoreDialog(viewModel: GameViewModel, audioMap: Map<AudioType, AudioClas
     }
 }
 
-
 @Composable
-fun GameIntro(onDismissRequest: () -> Unit) {
+fun GameIntro(onDismissRequest: () -> Unit, obstacleLimit: Int) {
     val textData = listOf(
-        "You're Jerry the mouse. The Objective of the game is to escape Tom, the cat which is hot on your trails.\n\n",
-        "How is game score calculated: game score increases by 1 everytime you cross a block\n\n",
+        "Current obstacle limit: $obstacleLimit\n\n",
+        "Game score increases by 1 everytime you cross a block\n\n",
         "Tap on each track, or tilt the phone to move Jerry.\n\n",
+        "The '?' hindrances provide random effects, including autojump, speedup, and obstacle effect.\n\n",
         "Once you hit an obstacle, Tom starts getting closer to you. If you hit an obstacle again while being chased, you will be caught and the game ends.\n\n",
         "If you evade Tom for 10 blocks, Tom will go back to chasing from a distance.\n\n",
-        "Obtain powerup cookies, which make you invulnerable to block obstacles for the next 10 blocks.\n\n",
-        "Tread on the Speedup tiles carefully!! it speeds up your gameplay for the next 10 blocks.\n\n",
         "Collect Cheese along your path - it can be used to shoot obstacles using the Cheese shooter button on the bottom right.\n\n",
         "Cheese can also be used to revive Jerry if caught - revive option consumes 1 cheese, and hence you must have at least 1 cheese to use it.\n\n"
     )

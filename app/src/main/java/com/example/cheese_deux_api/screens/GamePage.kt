@@ -52,6 +52,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
@@ -108,15 +109,26 @@ fun GamePage(
     }
 
     //region bitmaps
-    val catDrawableBitmap = ImageBitmap.imageResource(id = R.drawable.cat_icon)
-    val mouseDrawableBitmap = ImageBitmap.imageResource(id = R.drawable.mouse_icon)
-    val mouseHitDrawableBitmap = ImageBitmap.imageResource(id = R.drawable.mouse_icon_firsthit)
-    val mouseInvulnerableBitmap = ImageBitmap.imageResource(id = R.drawable.invulnerable_mouse_icon)
-    val obstacleDrawableBitmap = ImageBitmap.imageResource(id = R.drawable.obstacle)
-    val invulnerabilityCookieBitmap =
-        ImageBitmap.imageResource(id = R.drawable.invulnerability_cookie)
-    val speedUpBitmap = ImageBitmap.imageResource(id = R.drawable.speedup_icon)
+    //bitmaps from cheeseDeuxApi
+    val catDrawableBitmap = if (viewModel.catBitmap == null) {
+        ImageBitmap.imageResource(id = R.drawable.cat_icon)
+    } else {
+        viewModel.catBitmap!!.asImageBitmap()
+    }
+    val mouseDrawableBitmap = if (viewModel.mouseBitmap == null) {
+        ImageBitmap.imageResource(id = R.drawable.mouse_icon)
+    } else {
+        viewModel.mouseBitmap!!.asImageBitmap()
+    }
+    val obstacleDrawableBitmap = if (viewModel.obstacleBitmap == null) {
+        ImageBitmap.imageResource(id = R.drawable.obstacle)
+    } else {
+        viewModel.obstacleBitmap!!.asImageBitmap()
+    }
+
+    //bitmaps from local assets
     val cheeseBitmap = ImageBitmap.imageResource(id = R.drawable.cheese_icon)
+    val hindranceBitmap = ImageBitmap.imageResource(id = R.drawable.hindrance)
     //endregion
 
     //region positioning cat and mouse
@@ -148,7 +160,6 @@ fun GamePage(
         label = "cat y offset",
         animationSpec = tween(durationMillis = 800)
     )
-    println("wohoo ${viewModel.state.hitCount} count and ${viewModel.state.latestHitScore} score")
     //endregion
 
     //calculating current velocity
@@ -219,16 +230,10 @@ fun GamePage(
                 centreCoords = centreCoords
             )
 
-            drawObstacles(
+            drawObstaclesAndHindrances(
                 viewModel = viewModel,
-                imageBitmap = obstacleDrawableBitmap,
-                centreCoords = centreCoords,
-                velocity = currentVelocity
-            )
-
-            drawInvulnerabilityCookies(
-                viewModel = viewModel,
-                imageBitmap = invulnerabilityCookieBitmap,
+                obstacleImageBitmap = obstacleDrawableBitmap,
+                hindranceImageBitmap = hindranceBitmap,
                 centreCoords = centreCoords,
                 velocity = currentVelocity
             )
@@ -236,13 +241,6 @@ fun GamePage(
             drawCheese(
                 viewModel = viewModel,
                 imageBitmap = cheeseBitmap,
-                centreCoords = centreCoords,
-                velocity = currentVelocity
-            )
-
-            drawSpeedUps(
-                viewModel = viewModel,
-                imageBitmap = speedUpBitmap,
                 centreCoords = centreCoords,
                 velocity = currentVelocity
             )
@@ -255,12 +253,10 @@ fun GamePage(
 
             drawMouse(
                 mouseDrawableBitmap = mouseDrawableBitmap,
-                mouseHitDrawableBitmap = mouseHitDrawableBitmap,
-                mouseInvulnerableBitmap = mouseInvulnerableBitmap,
                 mouseXCoords = mouseXCoords,
                 viewModel = viewModel,
                 audioMap = audioMap,
-                context = context
+                context = context,
             )
         }
 
@@ -299,36 +295,91 @@ fun GamePage(
                         color = Color.Black
                     )
                 }
-                Button(
-                    onClick = {
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ScoreCardBackground
-                    ),
-                    border = BorderStroke(width = 6.dp, color = TitleColour),
-                    modifier = Modifier
-                        .padding(top = 5.dp)
-                        .fillMaxWidth(0.35f)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Button(
+                        onClick = {
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ScoreCardBackground
+                        ),
+                        border = BorderStroke(width = 6.dp, color = TitleColour),
+                        modifier = Modifier
+                            .padding(top = 5.dp)
+                            .fillMaxWidth(0.35f)
                     ) {
-                        Image(
-                            painter = painterResource(R.drawable.cheese_icon),
-                            contentDescription = "Cheese Icon",
-                            modifier = Modifier
-                                .size(30.dp)
-                        )
-                        Text(
-                            text = "${viewModel.hackerPlusState.cheeseCount}",
-                            fontFamily = anonymousProBold,
-                            fontSize = 30.sp,
-                            color = Color.Black,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .padding(start = 5.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.cheese_icon),
+                                contentDescription = "Cheese Icon",
+                                modifier = Modifier
+                                    .size(30.dp)
+                            )
+                            Text(
+                                text = "${viewModel.hackerPlusState.cheeseCount}",
+                                fontFamily = anonymousProBold,
+                                fontSize = 30.sp,
+                                color = Color.Black,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .padding(start = 5.dp)
+                            )
+                        }
+                    }
+                    AnimatedVisibility(visible = viewModel.hackerState.invulnerability) {
+                        Box(//reset game button
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(start = 10.dp)
+                        ) {
+                            Button(
+                                onClick = { },
+                                shape = CircleShape,
+                                modifier = Modifier.size(45.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ScoreCardBackground
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
+                                border = BorderStroke(width = 5.dp, color = TitleColour)
+                            ) {
+                            }
+                            Image(
+                                painter = painterResource(R.drawable.shield_icon),
+                                contentDescription = "Cheese Icon",
+                                modifier = Modifier
+                                    .size(35.dp)
+                            )
+                        }
+                    }
+                    AnimatedVisibility(visible = viewModel.hackerState.speedUp) {
+                        Box(//reset game button
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(start = 10.dp)
+                        ) {
+                            Button(
+                                onClick = { },
+                                shape = CircleShape,
+                                modifier = Modifier.size(45.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ScoreCardBackground
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
+                                border = BorderStroke(width = 5.dp, color = TitleColour)
+                            ) {
+                            }
+                            Image(
+                                painter = painterResource(R.drawable.speedup_icon),
+                                contentDescription = "Cheese Icon",
+                                modifier = Modifier
+                                    .size(45.dp)
+                                    .padding(horizontal = 10.dp)
+                            )
+                        }
+
                     }
                 }
             }
@@ -339,29 +390,31 @@ fun GamePage(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(//reset game button
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.padding(horizontal = 32.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            viewModel.resetGame()
-                            audioMap[AudioType.BUTTON]?.play(1f)
-                        },
-                        shape = CircleShape,
-                        modifier = Modifier.size(60.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = HomePageButtonBackground
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
-                        border = BorderStroke(width = 5.dp, color = TitleColour)
+                AnimatedVisibility(visible = viewModel.state.gameStatus == GameStatus.PAUSED) {
+                    Box(//reset game button
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
                     ) {
+                        Button(
+                            onClick = {
+                                viewModel.resetGame()
+                                audioMap[AudioType.BUTTON]?.play(1f)
+                            },
+                            shape = CircleShape,
+                            modifier = Modifier.size(60.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = HomePageButtonBackground
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
+                            border = BorderStroke(width = 5.dp, color = TitleColour)
+                        ) {
+                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.reset_icon),
+                            contentDescription = "pause symbol",
+                            modifier = Modifier.size(30.dp)
+                        )
                     }
-                    Image(
-                        painter = painterResource(id = R.drawable.reset_icon),
-                        contentDescription = "pause symbol",
-                        modifier = Modifier.size(30.dp)
-                    )
                 }
                 Box(//pause/play game button
                     contentAlignment = Alignment.Center,
@@ -535,7 +588,7 @@ fun GamePage(
                                 Button(
                                     onClick = {
                                         viewModel.openGameOverDialog = false
-                                        viewModel.cheeseRevive()
+                                        viewModel.cheeseRevive(cookieAudio = audioMap[AudioType.INVULNERABILITY])
                                         audioMap[AudioType.CHEESE_REVIVE]?.play(0.7f)
                                     },
                                     shape = CircleShape,
@@ -609,7 +662,6 @@ fun GamePage(
     //endregion
 }
 
-
 private fun DrawScope.drawCat(
     catDrawableBitmap: ImageBitmap,
     catXCoords: Int,
@@ -626,7 +678,7 @@ private fun DrawScope.drawCat(
     ) {
         drawImage(
             image = catDrawableBitmap,
-            dstSize = IntSize(width = 200, height = 180),
+            dstSize = IntSize(width = 200, height = 315),
             dstOffset = IntOffset(
                 x = catXCoords,
                 y = yOffset.toInt()
@@ -639,23 +691,14 @@ private fun DrawScope.drawCat(
 @RequiresApi(Build.VERSION_CODES.O)
 private fun DrawScope.drawMouse(
     mouseDrawableBitmap: ImageBitmap,
-    mouseHitDrawableBitmap: ImageBitmap,
-    mouseInvulnerableBitmap: ImageBitmap,
     mouseXCoords: Int,
     viewModel: GameViewModel,
     audioMap: Map<AudioType, AudioClass>,
     context: Context,
 ) {
-    val image = if (!viewModel.hackerState.invulnerability) {
-        if (viewModel.state.hitCount > 0) {
-            mouseHitDrawableBitmap
-        } else {
-            mouseDrawableBitmap
-        }
-    } else {
-        mouseInvulnerableBitmap
-    }
-    val mouseSize = IntSize(width = 170, height = 160)
+    val image = mouseDrawableBitmap
+
+    val mouseSize = IntSize(width = 170, height = 147)
     val mouseOffset = IntOffset(
         x = mouseXCoords,
         y = size.height.minus(Constants.MOUSE_HEIGHT.dp.toPx().toInt()).toInt()
@@ -669,20 +712,16 @@ private fun DrawScope.drawMouse(
 
     //check for collision and enabling powerUps
     val mouseRect = Rect(mouseOffset.toOffset(), mouseSize.toSize())
-    viewModel.observeCollision(
-        mouseRect = mouseRect,
-        gameOverAudio = audioMap[AudioType.GAME_OVER],
-        collisionAudio = audioMap[AudioType.FIRST_HIT],
-        context = context
-    )
-    viewModel.observeInvulnerabilityPowerup(
-        mouseRect = mouseRect,
-        cookieAudio = audioMap[AudioType.INVULNERABILITY]
-    )
-    viewModel.observeSpeedUpPowerup(
-        mouseRect = mouseRect,
-        speedUpAudio = audioMap[AudioType.SPEEDUP]
-    )
+    if (viewModel.state.gameStatus == GameStatus.PLAYING) {
+        viewModel.observeCollision(
+            mouseRect = mouseRect,
+            gameOverAudio = audioMap[AudioType.GAME_OVER],
+            collisionAudio = audioMap[AudioType.FIRST_HIT],
+            cookieAudio = audioMap[AudioType.INVULNERABILITY],
+            speedUpAudio = audioMap[AudioType.SPEEDUP],
+            context = context
+        )
+    }
     viewModel.observeCheesePowerup(
         mouseRect = mouseRect,
         collectAudio = audioMap[AudioType.CHEESE_COLLECT]
@@ -721,9 +760,10 @@ private fun DrawScope.drawMarkers(
     }
 }
 
-private fun DrawScope.drawObstacles(
+private fun DrawScope.drawObstaclesAndHindrances(
     viewModel: GameViewModel,
-    imageBitmap: ImageBitmap,
+    obstacleImageBitmap: ImageBitmap,
+    hindranceImageBitmap: ImageBitmap,
     centreCoords: List<Float>,
     velocity: Dp,
 ) {
@@ -737,69 +777,16 @@ private fun DrawScope.drawObstacles(
         right = size.width,
         bottom = size.height,
     ) {
-        viewModel.drawObstacles(
+        viewModel.drawObstaclesAndHindrances(
             centreCoords = centreCoords,
             drawScope = this,
             divHeight = divHeight,
-            imageBitmap = imageBitmap,
+            obstacleImageBitmap = obstacleImageBitmap,
+            hindranceImageBitmap = hindranceImageBitmap,
             height = size.height,
             velocityPx = velocity.toPx()
         )
         viewModel.increaseGameScore(velocity.toPx()) //increases score each time an obstacle passes the mouse
-    }
-}
-
-private fun DrawScope.drawInvulnerabilityCookies(
-    viewModel: GameViewModel,
-    imageBitmap: ImageBitmap,
-    centreCoords: List<Float>,
-    velocity: Dp,
-) {
-    val divHeight =
-        size.height.div(Constants.COOKIE_COUNT) //divided height of each obstacle (incl. space)
-
-    clipRect(
-//restricts drawing to within screen
-        left = 0f,
-        top = 0f,
-        right = size.width,
-        bottom = size.height,
-    ) {
-        viewModel.drawCookies(
-            centreCoords = centreCoords,
-            drawScope = this,
-            divHeight = divHeight,
-            imageBitmap = imageBitmap,
-            height = size.height,
-            velocityPx = velocity.toPx()
-        )
-    }
-}
-
-private fun DrawScope.drawSpeedUps(
-    viewModel: GameViewModel,
-    imageBitmap: ImageBitmap,
-    centreCoords: List<Float>,
-    velocity: Dp,
-) {
-    val divHeight =
-        size.height.div(Constants.SPEED_UP_COUNT) //divided height of each obstacle (incl. space)
-
-    clipRect(
-//restricts drawing to within screen
-        left = 0f,
-        top = 0f,
-        right = size.width,
-        bottom = size.height,
-    ) {
-        viewModel.drawSpeedUps(
-            centreCoords = centreCoords,
-            drawScope = this,
-            divHeight = divHeight,
-            imageBitmap = imageBitmap,
-            height = size.height,
-            velocityPx = velocity.toPx()
-        )
     }
 }
 

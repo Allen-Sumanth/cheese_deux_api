@@ -1,5 +1,4 @@
-package com.example.cheese_deux_api
-    .component_classes
+package com.example.cheese_deux_api.component_classes
 
 import android.content.Context
 import android.media.MediaPlayer

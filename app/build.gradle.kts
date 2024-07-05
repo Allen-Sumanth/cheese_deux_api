@@ -92,6 +92,8 @@ dependencies {
     implementation(libs.converter.gson)
     implementation(libs.okhttp)
 
+    //coil
+    implementation(libs.coil.compose)
 }
 
 kapt {
