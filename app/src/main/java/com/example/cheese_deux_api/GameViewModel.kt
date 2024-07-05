@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.collection.intIntMapOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -24,7 +23,6 @@ import com.example.cheese_deux_api.cheese_deux.ObstacleLimit
 import com.example.cheese_deux_api.component_classes.AudioClass
 import com.example.cheese_deux_api.component_classes.CheeseClass
 import com.example.cheese_deux_api.component_classes.FirstHitVibration
-import com.example.cheese_deux_api.component_classes.HindranceClass
 import com.example.cheese_deux_api.component_classes.HindranceType
 import com.example.cheese_deux_api.component_classes.ObstacleClass
 import com.example.cheese_deux_api.component_classes.ObstacleCourseApi
@@ -33,7 +31,6 @@ import com.example.cheese_deux_api.gyroscope.MeasurableSensor
 import com.example.cheese_deux_api.theme.MarkerColor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -101,7 +98,7 @@ class GameViewModel @Inject constructor(
     var obstacleBitmap: Bitmap? by mutableStateOf(null)
 
     init {
-        viewModelScope.launch(context = kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(context = Dispatchers.IO) {
             catBitmap = imageFetcher.getBitmap(
                 imageEndpoint = catApiEndpoint,
                 defaultImageRes = R.drawable.cat_icon
@@ -232,7 +229,7 @@ class GameViewModel @Inject constructor(
     }
 
     init {// obtaining the lanes for the first time
-        viewModelScope.launch(context = kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(context = Dispatchers.IO) {
             //each element of laneList is a pair of (Bool - isHindrance, Int - lane)
             val laneListPair = obstacleCourseApi.initialiseObstacleList()
             obstacleList.forEachIndexed { index, obstacleClass ->
@@ -395,7 +392,7 @@ class GameViewModel @Inject constructor(
                     }
 
                     HindranceType.SPEEDUP -> {
-                        viewModelScope.launch(context = kotlinx.coroutines.Dispatchers.Default) {
+                        viewModelScope.launch(context = Dispatchers.Default) {
                             val delayTime = hindranceAmount * 1000
                             hackerState = hackerState.copy(
                                 speedUp = true,
